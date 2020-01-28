@@ -17,11 +17,17 @@ public struct KeychainStored<Value: Codable, ValueEncoder: TopLevelEncoder, Valu
     public let service: String
     
     /// The value that is stored in the keychain.
-    public var wrappedValue: Value? {
-        didSet {
-            storeValueInKeychain(wrappedValue)
+    public var wrappedValue: Value {
+        get {
+            loadValueFromKeychain() ?? defaultValue
+        }
+        set {
+            storeValueInKeychain(newValue)
         }
     }
+
+    /// The default value when there is nothing in the keychain.
+    private let defaultValue: Value
     
     /// The logger used to log errors.
     private let logger: Logger?
@@ -36,16 +42,16 @@ public struct KeychainStored<Value: Codable, ValueEncoder: TopLevelEncoder, Valu
     
     /// Initialise a keychain stored value.
     /// - parameter service: An identifier for the value, stored in `kSecAttrService`.
+    /// - parameter defaultValue: a value when there is nothing in the keychain.
     /// - parameter logger: When set, errors are logged using this closure.
     /// - parameter encoder: The encoder to use to encode values. Note that the encoder is not used if the value is a String – they are stored directly as UTF-8 instead.
     /// - parameter decoder: The decoder to use to decode values. Note that the decoder is not used if the value is a String – they are stored directly as UTF-8 instead.
-    public init(service: String, logger: Logger? = { print($0) }, encoder: ValueEncoder, decoder: ValueDecoder) {
+    public init(service: String, defaultValue: Value, logger: Logger? = { print($0) }, encoder: ValueEncoder, decoder: ValueDecoder) {
         self.service = service
+        self.defaultValue = defaultValue
         self.logger = logger
         self.encoder = encoder
         self.decoder = decoder
-        
-        self.wrappedValue = loadValueFromKeychain()
     }
     
     // MARK: - Keychain interactions
@@ -104,7 +110,7 @@ public struct KeychainStored<Value: Codable, ValueEncoder: TopLevelEncoder, Valu
     // MARK: Storing the value in the keychain
     
     /// Stores the given `value` in the keychain.
-    private func storeValueInKeychain(_ value: Value?) {
+    private func storeValueInKeychain(_ value: Value) {
         guard let encoded = encodeValue(value) else {
             deleteFromKeychain()
             return
@@ -132,11 +138,7 @@ public struct KeychainStored<Value: Codable, ValueEncoder: TopLevelEncoder, Valu
     }
     
     /// Encodes the given value to data.
-    private func encodeValue(_ value: Value?) -> Data? {
-        guard let value = value else {
-            return nil
-        }
-        
+    private func encodeValue(_ value: Value) -> Data? {
         if Value.self == String.self {
             let string = value as! String
             return Data(string.utf8)
@@ -191,12 +193,13 @@ extension KeychainStored where ValueEncoder == JSONEncoder, ValueDecoder == JSON
     ///
     /// Initialise a keychain stored value.
     /// - parameter service: An identifier for the value, stored in `kSecAttrService`.
+    /// - parameter defaultValue: a value when there is nothing in the keychain.
     /// - parameter logger: When set, errors are logged using this closure.
     /// - parameter encoder: The encoder to use to encode values. Note that the encoder is not if the value is a String – they are stored directly as UTF-8 instead.
     /// - parameter decoder: The decoder to use to decode values. Note that the decoder is not if the value is a String – they are stored directly as UTF-8 instead.
-    public init(service: String, logger: Logger? = { print($0) }, jsonEncoder encoder: ValueEncoder = .init(), jsonDecoder decoder: ValueDecoder = .init()) {
+    public init(service: String, defaultValue: Value, logger: Logger? = { print($0) }, jsonEncoder encoder: ValueEncoder = .init(), jsonDecoder decoder: ValueDecoder = .init()) {
         /// note: The argument labels are `jsonEncoder` / `jsonDecoder` instead of just `encoder` / `decoder` because otherwise this init would call itself.
-        self.init(service: service, logger: logger, encoder: encoder, decoder: decoder)
+        self.init(service: service, defaultValue: defaultValue, logger: logger, encoder: encoder, decoder: decoder)
     }
 }
 
